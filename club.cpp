@@ -14,14 +14,15 @@ enum class lcb_ERROR {
 
 struct Table final {
   using money_t = uint16_t;
-  using name_t = std::string_view;
+  using name_t = std::string;
 
-  Table() : income_(0), free_(true), client_(), startTime_() {}
+  Table() : income_(0), free_(true), client_(), startTime_(), allTime_() {}
 
   money_t income_;
   bool free_;
   name_t client_;
   std::pair<uint16_t, uint16_t> startTime_;
+  std::pair<uint16_t, uint16_t> allTime_;
 };
 
 struct Club final {
@@ -89,6 +90,8 @@ void waitCustomer(Club *club, std::set<std::string> *queue,
 void leftCustomer(Club *club, std::set<std::string> *queue,
                   const std::string &line, size_t posLeft,
                   const Club::time_t &time);
+void clubEndInfo(Club *club);
+void flushClub(Club *club);
 
 int main(int argc, char **argv) {
 
@@ -251,11 +254,23 @@ lcb_ERROR sitTable(Club *club, std::set<std::string> *queue,
 
   if (club->checkTable(n)) {
     club->tables_[n].free_ = false;
+    club->tables_[n].client_ = name;
     club->tables_[n].startTime_ = time;
+
+    // std::cout << "\n\nSIT table " << "client_ = " << club->tables_[n].client_
+    //           << ", club->tables_[n].startTime_ = "
+    //           << club->tables_[n].startTime_.first << ":"
+    //           << club->tables_[n].startTime_.second << "\n";
   } else {
     printTime(time);
     std::cout << " PlaceIsBusy\n";
+    return lcb_ERROR::SUCCESS;
   }
+
+  // std::cout << "club->tables_[n].client_ = " << club->tables_[n].client_
+  //           << "\n";
+
+  queue->erase(name);
 
   return lcb_ERROR::SUCCESS;
 }
@@ -266,7 +281,7 @@ void waitCustomer(Club *club, std::set<std::string> *queue,
   std::string name;
   check(parseName(name, line, posLeft), "parse name");
 
-  if (club->checkFreeTable()) {
+  if (club->checkFreeTable() && queue->contains(name)) {
     printTime(time);
     std::cout << " 13 ICanWaitNoLonger!\n";
     return;
@@ -285,15 +300,84 @@ void leftCustomer(Club *club, std::set<std::string> *queue,
   std::string name;
   check(parseName(name, line, posLeft), "parse name");
 
+  // std::cout << "\n\nclub->checkClient(name) = " << club->checkClient(name)
+  //           << ", queue->contains(name) = " << queue->contains(name) <<
+  //           "\n\n";
+
   if (!(club->checkClient(name) || queue->contains(name))) {
     printTime(time);
     std::cout << " ClientUnknown\n";
     return;
   }
 
+  // std::cout << "club->checkClient(name) = " << club->checkClient(name)
+  //           << std::endl;
+
+  // for (size_t i = 0; i < club->tables_.size(); ++i) {
+  //   std::cout << club->tables_[i].client_ << " ";
+  // }
+
   if (club->checkClient(name)) {
-    auto table = std::find(club->tables_.begin(), club->tables_.end(),
-                           name == club->tables_.client_);
+    size_t n = 0;
+    for (size_t i = 0; i < club->tables_.size(); ++i) {
+      if (club->tables_[i].client_ == name) {
+        n = i;
+        break;
+      }
+    }
+
+    {
+      club->tables_[n].client_ = "";
+      club->tables_[n].free_ = true;
+
+      club->tables_[n].allTime_.first =
+          time.first - club->tables_[n].startTime_.first;
+
+      if (time.second >= club->tables_[n].startTime_.second) {
+        club->tables_[n].allTime_.second =
+            time.second - club->tables_[n].startTime_.second;
+        club->tables_[n].allTime_.first =
+            time.first - club->tables_[n].startTime_.first;
+      } else {
+        club->tables_[n].allTime_.second =
+            60 + time.second - club->tables_[n].startTime_.second;
+        club->tables_[n].allTime_.first =
+            time.first - club->tables_[n].startTime_.first - 1;
+      }
+
+      club->tables_[n].income_ =
+          club->price_ *
+          (time.first - club->tables_[n].startTime_.first +
+           (time.second >= club->tables_[n].startTime_.second ? 1 : 0));
+    }
+
+    // std::cout << "\nqueue->empty() = " << queue->empty() << "\n";
+    // for (auto i : *queue) {
+    //   std::cout << i << " ";
+    // }
+    // std::cout << "\nend\n";
+
+    {
+      if (!queue->empty()) {
+        club->tables_[n].client_ = *(*queue).begin();
+
+        club->tables_[n].startTime_.first = time.first;
+        club->tables_[n].startTime_.second = time.second;
+        club->tables_[n].free_ = false;
+        printTime(time);
+        std::cout << " 12 " << *(*queue).begin() << " " << n << std::endl;
+        queue->erase(*(*queue).begin());
+
+        // std::cout << "\n\nSIT table "
+        //           << "client_ = " << club->tables_[n].client_
+        //           << ", club->tables_[" << n
+        //           << "].startTime_ = " << club->tables_[n].startTime_.first
+        //           << ":" << club->tables_[n].startTime_.second
+        //           << ", club->tables_[n].allTime = "
+        //           << club->tables_[n].allTime_.first << ":"
+        //           << club->tables_[n].allTime_.second << "\n";
+      }
+    }
   }
 }
 
@@ -308,9 +392,58 @@ void leftCustomer(Club *club, std::set<std::string> *queue,
 
   check(parseHead(&file, club), "parseHead");
   check(parseEvent(&file, club, queue), "parse event");
+  flushClub(club);
+  printTime(club->close_);
+  std::cout << std::endl;
+  clubEndInfo(club);
 
-  std::cout << *club;
   return lcb_ERROR::SUCCESS;
+}
+
+void flushClub(Club *club) {
+  auto time = club->close_;
+  for (size_t n = 1; n < club->tables_.size(); ++n) {
+    if (club->tables_[n].free_ == false) {
+      printTime(time);
+      std::cout << " 11 ";
+
+      club->tables_[n].allTime_.first =
+          time.first - club->tables_[n].startTime_.first;
+
+      if (time.second >= club->tables_[n].startTime_.second) {
+        club->tables_[n].allTime_.second =
+            time.second - club->tables_[n].startTime_.second;
+        club->tables_[n].allTime_.first =
+            time.first - club->tables_[n].startTime_.first;
+      } else {
+        club->tables_[n].allTime_.second =
+            60 + time.second - club->tables_[n].startTime_.second;
+        club->tables_[n].allTime_.first =
+            time.first - club->tables_[n].startTime_.first - 1;
+      }
+
+      club->tables_[n].income_ =
+          club->price_ *
+          (time.first - club->tables_[n].startTime_.first +
+           (time.second >= club->tables_[n].startTime_.second ? 1 : 0));
+
+      std::cout << club->tables_[n].client_ << std::endl;
+    }
+  }
+}
+
+// money_t income_;
+// bool free_;
+// name_t client_;
+// std::pair<uint16_t, uint16_t> startTime_;
+// std::pair<uint16_t, uint16_t> allTime_;
+
+void clubEndInfo(Club *club) {
+  for (size_t i = 1; i < club->tables_.size(); ++i) {
+    std::cout << i << " " << club->tables_[i].income_ << " ";
+    printTime(club->tables_[i].allTime_);
+    std::cout << std::endl;
+  }
 }
 
 [[nodiscard]] lcb_ERROR parseHead(std::ifstream *file, Club *club) {
