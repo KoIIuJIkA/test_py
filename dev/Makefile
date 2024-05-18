@@ -8,6 +8,7 @@ IN_FILE := data/data.txt
 
 # Test files.
 TEST_SOURSES := test_main.cpp
+TEST_FILE := data/testHead.txt
 
 # Object files.
 OBJECTS := $(SOURCES:.cpp=.o)
@@ -57,7 +58,7 @@ run: build
 
 # Run tests
 test: build
-	./$(TEST_TARGET)
+	./$(TEST_TARGET) $(TEST_FILE)
 
 # Memory check step
 memory: build
