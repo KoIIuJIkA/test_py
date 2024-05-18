@@ -11,3 +11,5 @@ $ cd dev
 $ make
 
 $ make run 
+
+$ make test
