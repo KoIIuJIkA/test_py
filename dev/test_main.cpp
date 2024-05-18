@@ -1,9 +1,16 @@
 #include <gtest/gtest.h>
 
+#include <filesystem>
+
 #include "club.hpp"
 
+namespace fs = std::filesystem;
+
 TEST(PARSE, head) {
-  std::ifstream file("/Users/georgryabov/Desktop/test/dev/data/testHead.txt");
+  std::string filePath = std::filesystem::current_path();
+  filePath += "/data/testHead.txt";
+  std::cout << filePath;
+  std::ifstream file(filePath);
   Club *club = static_cast<Club *>(::operator new(sizeof(Club)));
   check(parseHead(&file, club), "test parseHead");
 
