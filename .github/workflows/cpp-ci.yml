@@ -3,7 +3,7 @@ name: C++ CI
 on:
   pull_request:
     branches:
-      - master
+      - main
     paths:
       - '**.cpp'
       - '**.h'
