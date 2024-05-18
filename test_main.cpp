@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-TEST(PARSE, head) { std::cout << "Wtf\n"; }
+TEST(PARSE, head) { EXPECT_TRUE(true); }
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
