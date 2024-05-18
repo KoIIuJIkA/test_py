@@ -210,9 +210,6 @@ void leftCustomer(Club *club, std::set<std::string> *queue,
       club->tables_[n].client_ = "";
       club->tables_[n].free_ = true;
 
-      // club->tables_[n].allTime_.first +=
-      //     time.first - club->tables_[n].startTime_.first;
-
       if (time.second >= club->tables_[n].startTime_.second) {
         club->tables_[n].allTime_.second +=
             time.second - club->tables_[n].startTime_.second;
@@ -246,11 +243,6 @@ void leftCustomer(Club *club, std::set<std::string> *queue,
         printTime(time);
         std::cout << " 12 " << *(*queue).begin() << " " << n << std::endl;
         queue->erase(*(*queue).begin());
-        // std::cout << "club->tables_[n].startTime_ = "
-        //           << club->tables_[n].startTime_.first << ":"
-        //           << club->tables_[n].startTime_.second
-        //           << ", club->tables_[n].allTime_ = "
-        //           << printTime(club->tables_[n].allTime_) << "\n";
       }
     }
   }
